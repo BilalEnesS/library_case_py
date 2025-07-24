@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+*.log
+
+# Sanal ortamlar
+venv/
+ENV/
+.env
+.env.*
+
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test ve coverage
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker
+*.db
+*.sqlite3
+db-data/
+
+# Diğer
+*.bak
+*.tmp
+
+# Kendi eklediklerin
+wait-for-postgres.sh 

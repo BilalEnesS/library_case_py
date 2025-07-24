@@ -1,0 +1,13 @@
+# Temel paketler
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+celery
+redis
+python-multipart
+# Kullanıcı yönetimi ve şifreleme için
+passlib[bcrypt]
+python-jose
+starlette
+jinja2
