@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Paneli</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .admin-title { color: #2d3a4b; font-weight: 700; margin-bottom: 24px; }
+        .patron-list { max-height: 350px; overflow-y: auto; }
+        .patron-list .list-group-item.active { background: #ffe58f; color: #2d3a4b; border-color: #ffe58f; }
+        .book-list li { background: #fff; border-radius: 6px; margin-bottom: 10px; padding: 10px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between; }
+        .book-list .btn { margin-left: 10px; }
+        .book-list .badge { font-size: 0.95em; }
+        .add-book-form { background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 18px 20px; margin-bottom: 24px; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="admin-title text-center">Admin Paneli</h1>
+        <div class="row">
+            <div class="col-md-4">
+                <h5>Patronlar</h5>
+                <ul class="list-group patron-list mb-4">
+                    {% for patron in patrons %}
+                        <a href="/admin/patron/{{ patron.id }}" class="list-group-item list-group-item-action {% if selected_patron and selected_patron.id == patron.id %}active{% endif %}">
+                            {{ patron.username }}
+                        </a>
+                    {% endfor %}
+                </ul>
+                {% if selected_patron %}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ selected_patron.username }}'ın Ödünç Aldığı Kitaplar</h6>
+                        {% if selected_patron_books %}
+                        <ul class="book-list list-unstyled">
+                            {% for book in selected_patron_books %}
+                                <li>{{ book.title }} - {{ book.author }} {% if book.due_date %}<span class="badge bg-info text-dark ms-2">İade Tarihi: {{ book.due_date }}</span>{% endif %}</li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p>Hiç kitap ödünç almamış.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            <div class="col-md-8">
+                <div class="add-book-form mb-4">
+                    <h5>Yeni Kitap Ekle</h5>
+                    <form method="post" action="/admin/books/add" class="row g-3">
+                        <div class="col-md-5">
+                            <input type="text" name="title" class="form-control" placeholder="Kitap Adı" required>
+                        </div>
+                        <div class="col-md-5">
+                            <input type="text" name="author" class="form-control" placeholder="Yazar" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success w-100">Ekle</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Kütüphanedeki Tüm Kitaplar</h5>
+                        <ul class="book-list list-unstyled">
+                        {% for book in books %}
+                            <li>
+                                <span>{{ book.title }} - {{ book.author }}</span>
+                                <span>
+                                    <a href="/admin/books/edit/{{ book.id }}" class="btn btn-sm btn-warning">Düzenle</a>
+                                    <form method="post" action="/admin/books/delete/{{ book.id }}" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger">Sil</button>
+                                    </form>
+                                </span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

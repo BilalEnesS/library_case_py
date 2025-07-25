@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, Cookie
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, Cookie, Path
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from . import crud, models, tasks
 from .database import engine, get_db
 from .db_seeder import seed_db # YENİ: Veri ekleme fonksiyonunu import et
@@ -90,6 +90,7 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
     if patron:
         patron_id = patron.id
         patron_books = db.query(models.Book).filter_by(patron_id=patron_id).all()
+    today = date.today()
     return templates.TemplateResponse(
         "index.html",
         {
@@ -98,6 +99,7 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
             "patron": patron,
             "patron_books": patron_books,
             "patron_id": patron_id,
+            "today": today,
         }
     )
 
@@ -134,7 +136,11 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     if not patron or not crud.verify_password(password, patron.hashed_password):
         return templates.TemplateResponse("login.html", {"request": request, "error": "Kullanıcı adı veya şifre hatalı."})
     access_token = create_access_token(data={"sub": patron.username})
-    response = RedirectResponse(url="/", status_code=303)
+    # Eğer admin kullanıcısı ise admin paneline yönlendir
+    if username == "admin" and password == "1234":
+        response = RedirectResponse(url="/admin", status_code=303)
+    else:
+        response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
     return response
 
@@ -175,6 +181,27 @@ def get_book_by_id_api(book_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Kitap bulunamadı")
     return db_book
 
+# --- Kitap Update ve Delete ---
+@app.put("/api/books/{book_id}", response_model=models.BookResponse, tags=["API - Kitaplar"])
+def update_book_api(book_id: int, book: models.BookCreate, db: Session = Depends(get_db)):
+    db_book = crud.get_book(db, book_id)
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+    db_book.title = book.title
+    db_book.author = book.author
+    db.commit()
+    db.refresh(db_book)
+    return db_book
+
+@app.delete("/api/books/{book_id}", status_code=204, tags=["API - Kitaplar"])
+def delete_book_api(book_id: int, db: Session = Depends(get_db)):
+    db_book = crud.get_book(db, book_id)
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+    db.delete(db_book)
+    db.commit()
+    return
+
 # --- Üye (Patron) API Endpointleri ---
 
 @app.post("/api/patrons/", response_model=models.PatronResponse, status_code=201, tags=["API - Kullanıcılar"])
@@ -191,6 +218,34 @@ def get_all_patrons_api(skip: int = 0, limit: int = 100, db: Session = Depends(g
     """API üzerinden tüm kütüphane üyelerini listeler."""
     patrons = crud.get_patrons(db=db, skip=skip, limit=limit)
     return patrons
+
+# --- Patron Read by ID, Update, Delete ---
+@app.get("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Kullanıcılar"])
+def get_patron_by_id_api(patron_id: int, db: Session = Depends(get_db)):
+    db_patron = crud.get_patron(db, patron_id)
+    if not db_patron:
+        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+    return db_patron
+
+@app.put("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Kullanıcılar"])
+def update_patron_api(patron_id: int, patron: models.PatronCreate, db: Session = Depends(get_db)):
+    db_patron = crud.get_patron(db, patron_id)
+    if not db_patron:
+        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+    db_patron.username = patron.username
+    db_patron.hashed_password = crud.get_password_hash(patron.password)
+    db.commit()
+    db.refresh(db_patron)
+    return db_patron
+
+@app.delete("/api/patrons/{patron_id}", status_code=204, tags=["API - Kullanıcılar"])
+def delete_patron_api(patron_id: int, db: Session = Depends(get_db)):
+    db_patron = crud.get_patron(db, patron_id)
+    if not db_patron:
+        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+    db.delete(db_patron)
+    db.commit()
+    return
 
 # --- Auth API Endpointleri ---
 
@@ -219,3 +274,92 @@ def trigger_reminders_api():
     """
     tasks.send_overdue_reminders.delay()
     return {"message": "Hatırlatma gönderme görevi başarıyla başlatıldı."}
+
+# --- API üzerinden ödünç alma ve iade ---
+@app.post("/api/books/{book_id}/checkout", response_model=models.BookResponse, tags=["API - Kitaplar"])
+def api_checkout_book(book_id: int, patron_id: int = Form(...), db: Session = Depends(get_db)):
+    db_book = crud.get_book(db, book_id)
+    db_patron = crud.get_patron(db, patron_id)
+    if not db_book or not db_patron:
+        raise HTTPException(status_code=404, detail="Kitap veya patron bulunamadı")
+    if db_book.patron_id is not None:
+        raise HTTPException(status_code=400, detail="Kitap zaten ödünçte")
+    return crud.checkout_book(db, book_id, patron_id)
+
+@app.post("/api/books/{book_id}/return", response_model=models.BookResponse, tags=["API - Kitaplar"])
+def api_return_book(book_id: int, db: Session = Depends(get_db)):
+    db_book = crud.get_book(db, book_id)
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+    if db_book.patron_id is None:
+        raise HTTPException(status_code=400, detail="Kitap zaten kütüphanede")
+    return crud.return_book(db, book_id)
+
+# --- Ödünçteki kitapları listele ---
+@app.get("/api/books/checked-out", response_model=List[models.BookResponse], tags=["API - Kitaplar"])
+def get_checked_out_books_api(db: Session = Depends(get_db)):
+    books = db.query(models.Book).filter(models.Book.patron_id.isnot(None)).all()
+    return books
+
+# --- Gecikmiş kitapları listele ---
+@app.get("/api/books/overdue", response_model=List[models.BookResponse], tags=["API - Kitaplar"])
+def get_overdue_books_api(db: Session = Depends(get_db)):
+    today = date.today()
+    books = db.query(models.Book).filter(models.Book.due_date.isnot(None), models.Book.due_date < today).all()
+    return books
+
+@app.get("/admin", response_class=HTMLResponse, tags=["Admin"])
+def admin_panel(request: Request, db: Session = Depends(get_db)):
+    patrons = crud.get_patrons(db)
+    books = crud.get_books(db)
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "patrons": patrons,
+        "books": books,
+        "selected_patron": None,
+        "selected_patron_books": None,
+    })
+
+@app.get("/admin/patron/{patron_id}", response_class=HTMLResponse, tags=["Admin"])
+def admin_patron_detail(request: Request, patron_id: int = Path(...), db: Session = Depends(get_db)):
+    patrons = crud.get_patrons(db)
+    books = crud.get_books(db)
+    selected_patron = crud.get_patron(db, patron_id=patron_id)
+    selected_patron_books = db.query(models.Book).filter_by(patron_id=patron_id).all() if selected_patron else []
+    return templates.TemplateResponse("admin.html", {
+        "request": request,
+        "patrons": patrons,
+        "books": books,
+        "selected_patron": selected_patron,
+        "selected_patron_books": selected_patron_books,
+    })
+
+@app.post("/admin/books/add", response_class=HTMLResponse, tags=["Admin"])
+def admin_add_book(request: Request, title: str = Form(...), author: str = Form(...), db: Session = Depends(get_db)):
+    crud.create_book(db, models.BookCreate(title=title, author=author))
+    return RedirectResponse(url="/admin", status_code=303)
+
+@app.post("/admin/books/delete/{book_id}", response_class=HTMLResponse, tags=["Admin"])
+def admin_delete_book(request: Request, book_id: int = Path(...), db: Session = Depends(get_db)):
+    book = crud.get_book(db, book_id)
+    if book:
+        db.delete(book)
+        db.commit()
+    return RedirectResponse(url="/admin", status_code=303)
+
+@app.get("/admin/books/edit/{book_id}", response_class=HTMLResponse, tags=["Admin"])
+def admin_edit_book_form(request: Request, book_id: int = Path(...), db: Session = Depends(get_db)):
+    book = crud.get_book(db, book_id)
+    if not book:
+        return RedirectResponse(url="/admin", status_code=303)
+    return templates.TemplateResponse("admin_edit_book.html", {"request": request, "book": book})
+
+@app.post("/admin/books/edit/{book_id}", response_class=HTMLResponse, tags=["Admin"])
+def admin_edit_book(request: Request, book_id: int = Path(...), title: str = Form(...), author: str = Form(...), db: Session = Depends(get_db)):
+    book = crud.get_book(db, book_id)
+    if book:
+        book.title = title
+        book.author = author
+        db.commit()
+        db.refresh(book)
+    return RedirectResponse(url="/admin", status_code=303)

@@ -22,17 +22,10 @@
             align-items: center;
             justify-content: space-between;
         }
-        .book-list .btn {
-            margin-left: 10px;
-        }
-        .book-list .badge {
-            font-size: 0.95em;
-        }
-        .panel-title {
-            color: #2d3a4b;
-            font-weight: 700;
-            margin-bottom: 18px;
-        }
+        .book-list .btn { margin-left: 10px; }
+        .book-list .badge { font-size: 0.95em; }
+        .panel-title { color: #2d3a4b; font-weight: 700; margin-bottom: 18px; }
+        .overdue-book { color: #d32f2f; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -45,7 +38,24 @@
             {% if patron_books %}
               <ul class="book-list list-unstyled">
                 {% for book in patron_books %}
-                  <li>{{ book.title }} - {{ book.author }} {% if book.due_date %}<span class="badge bg-info text-dark ms-2">İade Tarihi: {{ book.due_date }}</span>{% endif %}</li>
+                  {% set is_overdue = book.due_date and book.due_date < today %}
+                  <li {% if is_overdue %}class="overdue-book"{% endif %}>
+                    <span>
+                      {{ book.title }} - {{ book.author }}
+                      {% if book.due_date %}
+                        <span class="badge {% if is_overdue %}bg-danger text-light{% else %}bg-info text-dark{% endif %} ms-2">
+                          İade Tarihi: {{ book.due_date }}
+                          {% if is_overdue %} (GEÇTİ){% endif %}
+                        </span>
+                      {% endif %}
+                    </span>
+                    <span>
+                      <form method="post" action="/ui/return" style="display:inline;">
+                        <input type="hidden" name="book_id" value="{{ book.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">İade Et</button>
+                      </form>
+                    </span>
+                  </li>
                 {% endfor %}
               </ul>
             {% else %}

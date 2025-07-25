@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Kitap Düzenle</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .edit-box {
+            max-width: 500px;
+            margin: 60px auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            padding: 32px 28px 24px 28px;
+        }
+        .edit-title {
+            font-weight: 700;
+            color: #2d3a4b;
+            margin-bottom: 24px;
+        }
+        .form-label { font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="edit-box">
+        <h2 class="edit-title text-center">Kitap Düzenle</h2>
+        <form method="post" action="/admin/books/edit/{{ book.id }}">
+            <div class="mb-3">
+                <label for="title" class="form-label">Kitap Adı:</label>
+                <input type="text" id="title" name="title" class="form-control" value="{{ book.title }}" required>
+            </div>
+            <div class="mb-3">
+                <label for="author" class="form-label">Yazar:</label>
+                <input type="text" id="author" name="author" class="form-control" value="{{ book.author }}" required>
+            </div>
+            <button type="submit" class="btn btn-warning w-100">Kaydet</button>
+            <a href="/admin" class="btn btn-secondary w-100 mt-2">İptal</a>
+        </form>
+    </div>
+</body>
+</html> 
