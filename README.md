@@ -2,6 +2,8 @@
 
 This project is a full-stack **Library Management System** developed as a case study for a company technical assessment. It is designed to manage book lending, user registrations, overdue reminders, notifications, and admin reporting with a modern, user-friendly interface.
 
+![Main Page](main_page.png)
+
 ---
 
 ## 🚀 Features
