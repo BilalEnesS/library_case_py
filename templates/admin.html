@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Paneli</title>
+    <title>Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background: #f8f9fa; }
@@ -17,10 +17,10 @@
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="admin-title text-center">Admin Paneli</h1>
+        <h1 class="admin-title text-center">Admin Panel</h1>
         <div class="row">
             <div class="col-md-4">
-                <h5>Patronlar</h5>
+                <h5>Patrons</h5>
                 <ul class="list-group patron-list mb-4">
                     {% for patron in patrons %}
                         <a href="/admin/patron/{{ patron.id }}" class="list-group-item list-group-item-action {% if selected_patron and selected_patron.id == patron.id %}active{% endif %}">
@@ -31,15 +31,15 @@
                 {% if selected_patron %}
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h6 class="card-title">{{ selected_patron.username }}'ın Ödünç Aldığı Kitaplar</h6>
+                        <h6 class="card-title">Books Borrowed by {{ selected_patron.username }}</h6>
                         {% if selected_patron_books %}
                         <ul class="book-list list-unstyled">
                             {% for book in selected_patron_books %}
-                                <li>{{ book.title }} - {{ book.author }} {% if book.due_date %}<span class="badge bg-info text-dark ms-2">İade Tarihi: {{ book.due_date }}</span>{% endif %}</li>
+                                <li>{{ book.title }} - {{ book.author }} {% if book.due_date %}<span class="badge bg-info text-dark ms-2">Due Date: {{ book.due_date }}</span>{% endif %}</li>
                             {% endfor %}
                         </ul>
                         {% else %}
-                        <p>Hiç kitap ödünç almamış.</p>
+                        <p>No books borrowed.</p>
                         {% endif %}
                     </div>
                 </div>
@@ -47,30 +47,30 @@
             </div>
             <div class="col-md-8">
                 <div class="add-book-form mb-4">
-                    <h5>Yeni Kitap Ekle</h5>
+                    <h5>Add New Book</h5>
                     <form method="post" action="/admin/books/add" class="row g-3">
                         <div class="col-md-5">
-                            <input type="text" name="title" class="form-control" placeholder="Kitap Adı" required>
+                            <input type="text" name="title" class="form-control" placeholder="Book Title" required>
                         </div>
                         <div class="col-md-5">
-                            <input type="text" name="author" class="form-control" placeholder="Yazar" required>
+                            <input type="text" name="author" class="form-control" placeholder="Author" required>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100">Ekle</button>
+                            <button type="submit" class="btn btn-success w-100">Add</button>
                         </div>
                     </form>
                 </div>
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Kütüphanedeki Tüm Kitaplar</h5>
+                        <h5 class="card-title">All Books in Library</h5>
                         <ul class="book-list list-unstyled">
                         {% for book in books %}
                             <li>
                                 <span>{{ book.title }} - {{ book.author }}</span>
                                 <span>
-                                    <a href="/admin/books/edit/{{ book.id }}" class="btn btn-sm btn-warning">Düzenle</a>
+                                    <a href="/admin/books/edit/{{ book.id }}" class="btn btn-sm btn-warning">Edit</a>
                                     <form method="post" action="/admin/books/delete/{{ book.id }}" style="display:inline;">
-                                        <button type="submit" class="btn btn-sm btn-danger">Sil</button>
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                                     </form>
                                 </span>
                             </li>

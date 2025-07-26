@@ -158,6 +158,16 @@ def register_submit(request: Request, username: str = Form(...), password: str =
     response = RedirectResponse(url="/login", status_code=303)
     return response
 
+@app.post("/logout", tags=["Arayüz"])
+def logout():
+    """
+    Kullanıcı çıkış yapar ve cookie'yi temizler.
+    Kullanıcıyı ana sayfaya yönlendirir.
+    """
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(key="access_token")
+    return response
+
 # --- RESTful API Endpointleri (Swagger / Programatik Erişim için) ---
 
 # --- Kitap API Endpointleri ---
