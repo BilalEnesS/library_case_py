@@ -50,7 +50,7 @@ This will automatically build and start the FastAPI app, Celery worker, and Redi
 ### 1. Clone the Repository
 ```bash
 git clone <repo-url>
-cd b2metric_case
+cd library_case_py
 ```
 
 ### 2. Create and Activate Virtual Environment
