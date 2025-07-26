@@ -1,8 +1,8 @@
-from sqlalchemy import Boolean, Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String, Date, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 from .database import Base
 
 # --- SQLAlchemy DB Modelleri ---
@@ -26,6 +26,30 @@ class Patron(Base):
     hashed_password = Column(String, nullable=False)
 
     checked_out_books = relationship("Book", back_populates="patron")
+
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient_id = Column(Integer, ForeignKey("patrons.id"), nullable=False)
+    subject = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="sent")  # sent, failed, pending
+    email_type = Column(String, nullable=False)  # overdue_reminder, weekly_report, etc.
+
+    recipient = relationship("Patron")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patron_id = Column(Integer, ForeignKey("patrons.id"), nullable=False)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+
+    patron = relationship("Patron")
 
 # --- Pydantic API Modelleri ---
 
@@ -54,5 +78,35 @@ class PatronLogin(PatronBase):
 
 class PatronResponse(PatronBase):
     id: int
+    class Config:
+        from_attributes = True
+
+class EmailLogBase(BaseModel):
+    recipient_id: int
+    subject: str
+    message: str
+    email_type: str
+
+class EmailLogCreate(EmailLogBase):
+    pass
+
+class EmailLogResponse(EmailLogBase):
+    id: int
+    sent_at: datetime
+    status: str
+    class Config:
+        from_attributes = True
+
+class NotificationBase(BaseModel):
+    patron_id: int
+    message: str
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class NotificationResponse(NotificationBase):
+    id: int
+    created_at: datetime
+    is_read: bool
     class Config:
         from_attributes = True

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Weekly Report - Admin Panel</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📚</text></svg>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .admin-title { color: #2d3a4b; font-weight: 700; margin-bottom: 24px; }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .stats-card.success { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); }
+        .stats-card.warning { background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%); }
+        .stats-card.info { background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%); }
+        .stats-card.danger { background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%); }
+        .report-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .book-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .book-item.overdue { border-left-color: #dc3545; }
+        .book-item.recent { border-left-color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="admin-title">Weekly Library Report</h1>
+            <a href="/admin" class="btn btn-outline-primary">← Back to Admin Panel</a>
+        </div>
+
+        <!-- Report Header -->
+        <div class="report-section">
+            <div class="row">
+                <div class="col-md-8">
+                    <h4>📊 Library Statistics Report</h4>
+                    <p class="text-muted mb-0">Generated on: {{ report.generated_at }}</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button onclick="window.print()" class="btn btn-outline-secondary">
+                        🖨️ Print Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stats-card">
+                    <h2>{{ report.total_books }}</h2>
+                    <p class="mb-0">Total Books</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card success">
+                    <h2>{{ report.checked_out_books }}</h2>
+                    <p class="mb-0">Checked Out</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card info">
+                    <h2>{{ report.available_books }}</h2>
+                    <p class="mb-0">Available</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stats-card danger">
+                    <h2>{{ report.overdue_books }}</h2>
+                    <p class="mb-0">Overdue</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Additional Stats -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="stats-card warning">
+                    <h2>{{ report.checkout_rate }}</h2>
+                    <p class="mb-0">Checkout Rate</p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stats-card info">
+                    <h2>{{ report.recent_checkouts }}</h2>
+                    <p class="mb-0">Recent Checkouts (7 days)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overdue Books Section -->
+        {% if report.overdue_books_list %}
+        <div class="report-section">
+            <h5 class="text-danger mb-3">⚠️ Overdue Books ({{ report.overdue_books }})</h5>
+            {% for book in report.overdue_books_list %}
+            <div class="book-item overdue">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ book.title }}</strong> by {{ book.author }}
+                        {% if book.patron %}
+                        <br><small class="text-muted">Borrowed by: {{ book.patron.username }}</small>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="badge bg-danger">Due: {{ book.due_date }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Recent Checkouts Section -->
+        {% if report.recent_checkouts_list %}
+        <div class="report-section">
+            <h5 class="text-success mb-3">📚 Recent Checkouts (Last 7 Days)</h5>
+            {% for book in report.recent_checkouts_list %}
+            <div class="book-item recent">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ book.title }}</strong> by {{ book.author }}
+                        {% if book.patron %}
+                        <br><small class="text-muted">Borrowed by: {{ book.patron.username }}</small>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="badge bg-success">Due: {{ book.due_date }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Summary -->
+        <div class="report-section">
+            <h5>📋 Summary</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li>✅ Total books in library: {{ report.total_books }}</li>
+                        <li>📖 Currently checked out: {{ report.checked_out_books }}</li>
+                        <li>📚 Available for borrowing: {{ report.available_books }}</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li>⚠️ Overdue books: {{ report.overdue_books }}</li>
+                        <li>📈 Checkout rate: {{ report.checkout_rate }}</li>
+                        <li>🆕 Recent checkouts: {{ report.recent_checkouts }}</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

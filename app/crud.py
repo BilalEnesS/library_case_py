@@ -63,3 +63,62 @@ def return_book(db: Session, book_id: int):
     db.commit()
     db.refresh(db_book)
     return db_book
+
+# --- Süresi Geçmiş Kitaplar ---
+def get_overdue_books(db: Session):
+    """Süresi geçmiş kitapları getirir."""
+    today = date.today()
+    return db.query(models.Book).filter(
+        models.Book.due_date < today,
+        models.Book.patron_id.isnot(None)
+    ).all()
+
+# --- Email Log CRUD İşlemleri ---
+def create_email_log(db: Session, email_log: models.EmailLogCreate):
+    """Email gönderim kaydı oluşturur."""
+    db_email_log = models.EmailLog(**email_log.dict())
+    db.add(db_email_log)
+    db.commit()
+    db.refresh(db_email_log)
+    return db_email_log
+
+def get_email_logs(db: Session, skip: int = 0, limit: int = 100):
+    """Email gönderim kayıtlarını getirir."""
+    return db.query(models.EmailLog).order_by(models.EmailLog.sent_at.desc()).offset(skip).limit(limit).all()
+
+def get_email_logs_by_type(db: Session, email_type: str, skip: int = 0, limit: int = 100):
+    """Belirli tipteki email kayıtlarını getirir."""
+    return db.query(models.EmailLog).filter(
+        models.EmailLog.email_type == email_type
+    ).order_by(models.EmailLog.sent_at.desc()).offset(skip).limit(limit).all()
+
+def update_email_log_status(db: Session, email_id: int, status: str):
+    """Email log durumunu günceller."""
+    db_email_log = db.query(models.EmailLog).filter(models.EmailLog.id == email_id).first()
+    if db_email_log:
+        db_email_log.status = status
+        db.commit()
+        db.refresh(db_email_log)
+    return db_email_log
+
+# --- Notification (Bildirim) CRUD ---
+def create_notification(db: Session, notification: models.NotificationCreate):
+    db_notification = models.Notification(**notification.dict())
+    db.add(db_notification)
+    db.commit()
+    db.refresh(db_notification)
+    return db_notification
+
+def get_notifications_for_patron(db: Session, patron_id: int, only_unread: bool = False):
+    q = db.query(models.Notification).filter(models.Notification.patron_id == patron_id)
+    if only_unread:
+        q = q.filter(models.Notification.is_read == False)
+    return q.order_by(models.Notification.created_at.desc()).all()
+
+def mark_notification_as_read(db: Session, notification_id: int):
+    notif = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
+    if notif:
+        notif.is_read = True
+        db.commit()
+        db.refresh(notif)
+    return notif

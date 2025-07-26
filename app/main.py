@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form, Cookie, Path
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, Cookie, Path, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, date
 from . import crud, models, tasks
 from .database import engine, get_db
 from .db_seeder import seed_db # YENİ: Veri ekleme fonksiyonunu import et
-from fastapi import status
 from starlette.responses import Response
 from .database import engine, get_db, SessionLocal
 
@@ -78,6 +77,7 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
     patron = None
     patron_books = []
     patron_id = None
+    notifications = []
     if access_token:
         try:
             token = access_token.replace("Bearer ", "")
@@ -90,6 +90,7 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
     if patron:
         patron_id = patron.id
         patron_books = db.query(models.Book).filter_by(patron_id=patron_id).all()
+        notifications = crud.get_notifications_for_patron(db, patron_id)
     today = date.today()
     return templates.TemplateResponse(
         "index.html",
@@ -100,6 +101,7 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
             "patron_books": patron_books,
             "patron_id": patron_id,
             "today": today,
+            "notifications": notifications,
         }
     )
 
@@ -322,10 +324,15 @@ def get_overdue_books_api(db: Session = Depends(get_db)):
 def admin_panel(request: Request, db: Session = Depends(get_db)):
     patrons = crud.get_patrons(db)
     books = crud.get_books(db)
+    overdue_books = crud.get_overdue_books(db)
+    email_logs = crud.get_email_logs(db, limit=10)  # Son 10 email log'u
+    
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "patrons": patrons,
         "books": books,
+        "overdue_books": overdue_books,
+        "email_logs": email_logs,
         "selected_patron": None,
         "selected_patron_books": None,
     })
@@ -334,19 +341,28 @@ def admin_panel(request: Request, db: Session = Depends(get_db)):
 def admin_patron_detail(request: Request, patron_id: int = Path(...), db: Session = Depends(get_db)):
     patrons = crud.get_patrons(db)
     books = crud.get_books(db)
-    selected_patron = crud.get_patron(db, patron_id=patron_id)
-    selected_patron_books = db.query(models.Book).filter_by(patron_id=patron_id).all() if selected_patron else []
+    selected_patron = crud.get_patron(db, patron_id)
+    selected_patron_books = None
+    if selected_patron:
+        selected_patron_books = db.query(models.Book).filter_by(patron_id=patron_id).all()
+    
+    overdue_books = crud.get_overdue_books(db)
+    email_logs = crud.get_email_logs(db, limit=10)
+    
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "patrons": patrons,
         "books": books,
+        "overdue_books": overdue_books,
+        "email_logs": email_logs,
         "selected_patron": selected_patron,
         "selected_patron_books": selected_patron_books,
     })
 
 @app.post("/admin/books/add", response_class=HTMLResponse, tags=["Admin"])
 def admin_add_book(request: Request, title: str = Form(...), author: str = Form(...), db: Session = Depends(get_db)):
-    crud.create_book(db, models.BookCreate(title=title, author=author))
+    book = models.BookCreate(title=title, author=author)
+    crud.create_book(db, book)
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.post("/admin/books/delete/{book_id}", response_class=HTMLResponse, tags=["Admin"])
@@ -360,8 +376,6 @@ def admin_delete_book(request: Request, book_id: int = Path(...), db: Session = 
 @app.get("/admin/books/edit/{book_id}", response_class=HTMLResponse, tags=["Admin"])
 def admin_edit_book_form(request: Request, book_id: int = Path(...), db: Session = Depends(get_db)):
     book = crud.get_book(db, book_id)
-    if not book:
-        return RedirectResponse(url="/admin", status_code=303)
     return templates.TemplateResponse("admin_edit_book.html", {"request": request, "book": book})
 
 @app.post("/admin/books/edit/{book_id}", response_class=HTMLResponse, tags=["Admin"])
@@ -371,5 +385,116 @@ def admin_edit_book(request: Request, book_id: int = Path(...), title: str = For
         book.title = title
         book.author = author
         db.commit()
-        db.refresh(book)
     return RedirectResponse(url="/admin", status_code=303)
+
+# --- Email Management Endpoints ---
+
+@app.get("/admin/emails", response_class=HTMLResponse, tags=["Admin"])
+def admin_email_logs(request: Request, db: Session = Depends(get_db)):
+    """Email gönderim geçmişini gösterir."""
+    email_logs = crud.get_email_logs(db, limit=50)
+    overdue_books = crud.get_overdue_books(db)
+    
+    return templates.TemplateResponse("admin_emails.html", {
+        "request": request,
+        "email_logs": email_logs,
+        "overdue_books": overdue_books,
+    })
+
+@app.post("/admin/send-overdue-reminders", response_class=HTMLResponse, tags=["Admin"])
+def admin_send_overdue_reminders(request: Request, db: Session = Depends(get_db)):
+    """Manuel olarak süresi geçmiş kitap hatırlatmaları gönderir."""
+    from .tasks import send_overdue_reminders
+    # Celery task'ını manuel olarak tetikle
+    send_overdue_reminders.delay()
+    return RedirectResponse(url="/admin", status_code=303)
+
+@app.post("/admin/send-weekly-report", response_class=HTMLResponse, tags=["Admin"])
+def admin_send_weekly_report(request: Request, db: Session = Depends(get_db)):
+    """Manuel olarak haftalık rapor oluşturur ve admin panelinde gösterir."""
+    from .tasks import generate_weekly_report
+    # Celery task'ını manuel olarak tetikle
+    task_result = generate_weekly_report.delay()
+    
+    # Task sonucunu bekle ve rapor verilerini al
+    try:
+        report_data = task_result.get(timeout=10)  # 10 saniye bekle
+        return RedirectResponse(url=f"/admin/weekly-report?data={report_data}", status_code=303)
+    except:
+        return RedirectResponse(url="/admin?error=report_generation_failed", status_code=303)
+
+@app.get("/admin/weekly-report", response_class=HTMLResponse, tags=["Admin"])
+def admin_weekly_report(request: Request, db: Session = Depends(get_db)):
+    """Haftalık raporu admin panelinde gösterir."""
+    # Rapor verilerini hesapla
+    all_books = crud.get_books(db)
+    checked_out_books = [book for book in all_books if book.patron_id is not None]
+    overdue_books = crud.get_overdue_books(db)
+    
+    # Haftalık istatistikler (son 7 gün)
+    from datetime import timedelta
+    week_ago = date.today() - timedelta(days=7)
+    
+    # Son 7 günde ödünç alınan kitaplar
+    recent_checkouts = db.query(models.Book).filter(
+        models.Book.patron_id.isnot(None),
+        models.Book.due_date >= week_ago
+    ).all()
+    
+    report_data = {
+        "total_books": len(all_books),
+        "checked_out_books": len(checked_out_books),
+        "overdue_books": len(overdue_books),
+        "available_books": len(all_books) - len(checked_out_books),
+        "checkout_rate": f"{(len(checked_out_books) / len(all_books) * 100):.1f}%" if all_books else "0%",
+        "recent_checkouts": len(recent_checkouts),
+        "generated_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "overdue_books_list": overdue_books,
+        "recent_checkouts_list": recent_checkouts
+    }
+    
+    return templates.TemplateResponse("admin_weekly_report.html", {
+        "request": request,
+        "report": report_data,
+    })
+
+# --- API Endpoints for Email Logs ---
+
+@app.get("/api/emails/", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
+def get_email_logs_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """API üzerinden email log'larını listeler."""
+    return crud.get_email_logs(db, skip=skip, limit=limit)
+
+@app.get("/api/emails/overdue-reminders", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
+def get_overdue_reminder_emails_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Süresi geçmiş kitap hatırlatma email'lerini listeler."""
+    return crud.get_email_logs_by_type(db, "overdue_reminder", skip=skip, limit=limit)
+
+@app.get("/api/emails/weekly-reports", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
+def get_weekly_report_emails_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Haftalık rapor email'lerini listeler."""
+    return crud.get_email_logs_by_type(db, "weekly_report", skip=skip, limit=limit)
+
+@app.post("/notifications/read/{notification_id}", response_class=HTMLResponse)
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db), request: Request = None):
+    crud.mark_notification_as_read(db, notification_id)
+    # Geri ana sayfaya yönlendir
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/notifications/delete/{notification_id}", response_class=HTMLResponse)
+def delete_notification(notification_id: int, db: Session = Depends(get_db), request: Request = None):
+    notif = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
+    if notif:
+        db.delete(notif)
+        db.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.get("/admin/notifications", response_class=HTMLResponse, tags=["Admin"])
+def admin_notifications(request: Request, db: Session = Depends(get_db)):
+    notifications = db.query(models.Notification).order_by(models.Notification.created_at.desc()).all()
+    patrons = crud.get_patrons(db)
+    return templates.TemplateResponse("admin_notifications.html", {
+        "request": request,
+        "notifications": notifications,
+        "patrons": patrons,
+    })
