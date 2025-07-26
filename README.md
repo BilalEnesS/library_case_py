@@ -36,10 +36,14 @@ This project is a full-stack **Library Management System** developed as a case s
 
 ### 🚀 **Easiest Way: One Command Setup**
 
- **Just run:**
- ```bash
- docker-compose up --build
- ```
+1. Open a terminal and **go to the project folder**:
+   ```bash
+   cd library_case_py
+   ```
+2. Then just run:
+   ```bash
+   docker-compose up --build
+   ```
 
 This will automatically build and start the FastAPI app, Celery worker, and Redis. No manual steps required!
 
