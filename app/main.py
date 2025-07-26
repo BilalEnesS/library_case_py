@@ -8,31 +8,31 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta, date
 from . import crud, models, tasks
 from .database import engine, get_db
-from .db_seeder import seed_db # YENİ: Veri ekleme fonksiyonunu import et
+from .db_seeder import seed_db # NEW: Import the data seeding function
 from starlette.responses import Response
 from .database import engine, get_db, SessionLocal
 
-# Proje içindeki diğer modülleri import et
+# Import other modules from the project
 
-# --- Uygulama Kurulumu ve Başlangıç Ayarları ---
+# --- Application Setup and Initial Configuration ---
 
-# 1. SQLAlchemy'ye veritabanı tablolarını oluşturmasını söyle.
-#    Eğer tablolar zaten varsa, herhangi bir işlem yapmaz.
+# 1. Tell SQLAlchemy to create database tables.
+#    If tables already exist, it won't do anything.
 models.Base.metadata.create_all(bind=engine)
 
-# 2. FastAPI uygulamasını oluştur
-app = FastAPI(title="Kütüphane Yönetim Sistemi")
+# 2. Create FastAPI application
+app = FastAPI(title="Library Management System")
 
 try:
     db = SessionLocal()
     seed_db(db)
 finally:
     db.close()
-# 3. HTML şablonlarını (templates) kullanmak için Jinja2'yi ayarla
-#    Bu, projenin ana dizinindeki 'templates' klasörünü arayacak.
+# 3. Configure Jinja2 to use HTML templates
+#    This will look for the 'templates' folder in the project root.
 templates = Jinja2Templates(directory="templates")
 
-SECRET_KEY = "supersecretkey"  # Gerçek projede .env'den alınmalı
+SECRET_KEY = "supersecretkey"  # In real project, should be loaded from .env
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
@@ -45,11 +45,11 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-# Kullanıcıyı token'dan bulmak için yardımcı fonksiyon
+# Helper function to find user from token
 def get_current_patron(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Geçersiz kimlik doğrulama bilgisi",
+        detail="Invalid authentication credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -64,14 +64,14 @@ def get_current_patron(token: str = Depends(oauth2_scheme), db: Session = Depend
         raise credentials_exception
     return patron
 
-# --- HTML Arayüzü (UI) Endpointleri ---
+# --- HTML Interface (UI) Endpoints ---
 
-@app.get("/", response_class=HTMLResponse, tags=["Arayüz"])
+@app.get("/", response_class=HTMLResponse, tags=["Interface"])
 async def show_main_page(request: Request, db: Session = Depends(get_db), access_token: str = Cookie(default=None)):
     """
-    Ana yönetim panelini (index.html) gösterir.
-    Veritabanından tüm kitapları ve üyeleri çeker ve şablona gönderir.
-    Ayrıca giriş yapan kullanıcıya ait ödünç alınan kitapları da gösterir.
+    Shows the main management panel (index.html).
+    Fetches all books and members from database and sends them to the template.
+    Also shows books borrowed by the logged-in user.
     """
     all_books = crud.get_books(db)
     patron = None
@@ -105,40 +105,40 @@ async def show_main_page(request: Request, db: Session = Depends(get_db), access
         }
     )
 
-@app.post("/ui/checkout", tags=["Arayüz"])
+@app.post("/ui/checkout", tags=["Interface"])
 async def ui_checkout_book(
     db: Session = Depends(get_db),
     book_id: int = Form(...),
     patron_id: int = Form(...)
 ):
     """
-    HTML arayüzündeki formdan gelen verilerle kitap ödünç alma işlemini yapar.
-    İşlemden sonra kullanıcıyı ana sayfaya yönlendirir.
+    Performs book checkout operation with data from HTML interface form.
+    Redirects user to main page after operation.
     """
     crud.checkout_book(db=db, book_id=book_id, patron_id=patron_id)
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.post("/ui/return", tags=["Arayüz"])
+@app.post("/ui/return", tags=["Interface"])
 async def ui_return_book(db: Session = Depends(get_db), book_id: int = Form(...)):
     """
-    HTML arayüzündeki formdan gelen verilerle kitap iade işlemini yapar.
-    İşlemden sonra kullanıcıyı ana sayfaya yönlendirir.
+    Performs book return operation with data from HTML interface form.
+    Redirects user to main page after operation.
     """
     crud.return_book(db=db, book_id=book_id)
     return RedirectResponse(url="/", status_code=303)
 
-@app.get("/login", response_class=HTMLResponse, tags=["Arayüz"])
+@app.get("/login", response_class=HTMLResponse, tags=["Interface"])
 def login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "error": None})
 
-@app.post("/login", response_class=HTMLResponse, tags=["Arayüz"])
+@app.post("/login", response_class=HTMLResponse, tags=["Interface"])
 def login_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     patron = crud.get_patron_by_username(db, username=username)
     if not patron or not crud.verify_password(password, patron.hashed_password):
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Kullanıcı adı veya şifre hatalı."})
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Invalid username or password."})
     access_token = create_access_token(data={"sub": patron.username})
-    # Eğer admin kullanıcısı ise admin paneline yönlendir
+    # If admin user, redirect to admin panel
     if username == "admin" and password == "1234":
         response = RedirectResponse(url="/admin", status_code=303)
     else:
@@ -146,186 +146,182 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
     response.set_cookie(key="access_token", value=f"Bearer {access_token}", httponly=True)
     return response
 
-@app.get("/register", response_class=HTMLResponse, tags=["Arayüz"])
+@app.get("/register", response_class=HTMLResponse, tags=["Interface"])
 def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request, "error": None})
 
-@app.post("/register", response_class=HTMLResponse, tags=["Arayüz"])
+@app.post("/register", response_class=HTMLResponse, tags=["Interface"])
 def register_submit(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     db_patron = crud.get_patron_by_username(db, username=username)
     if db_patron:
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Bu kullanıcı adı zaten alınmış."})
+        return templates.TemplateResponse("register.html", {"request": request, "error": "This username is already taken."})
     patron = models.PatronCreate(username=username, password=password)
     crud.create_patron(db, patron)
     response = RedirectResponse(url="/login", status_code=303)
     return response
 
-@app.post("/logout", tags=["Arayüz"])
+@app.post("/logout", tags=["Interface"])
 def logout():
     """
-    Kullanıcı çıkış yapar ve cookie'yi temizler.
-    Kullanıcıyı ana sayfaya yönlendirir.
+    User logout - clears cookie and redirects to main page.
     """
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(key="access_token")
     return response
 
-# --- RESTful API Endpointleri (Swagger / Programatik Erişim için) ---
+# --- RESTful API Endpoints (Swagger / Programmatic Access) ---
 
-# --- Kitap API Endpointleri ---
+# --- Book API Endpoints ---
 
-@app.post("/api/books/", response_model=models.BookResponse, status_code=201, tags=["API - Kitaplar"])
+@app.post("/api/books/", response_model=models.BookResponse, status_code=201, tags=["API - Books"])
 def create_book_api(book: models.BookCreate, db: Session = Depends(get_db)):
-    """API üzerinden yeni bir kitap oluşturur."""
+    """Creates a new book via API."""
     return crud.create_book(db=db, book=book)
 
-@app.get("/api/books/", response_model=List[models.BookResponse], tags=["API - Kitaplar"])
+@app.get("/api/books/", response_model=List[models.BookResponse], tags=["API - Books"])
 def get_all_books_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """API üzerinden tüm kitapları listeler."""
+    """Lists all books via API."""
     books = crud.get_books(db=db, skip=skip, limit=limit)
     return books
 
-@app.get("/api/books/{book_id}", response_model=models.BookResponse, tags=["API - Kitaplar"])
+@app.get("/api/books/{book_id}", response_model=models.BookResponse, tags=["API - Books"])
 def get_book_by_id_api(book_id: int, db: Session = Depends(get_db)):
-    """API üzerinden ID ile tek bir kitap bilgisi alır."""
+    """Gets single book information by ID via API."""
     db_book = crud.get_book(db, book_id=book_id)
     if db_book is None:
-        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+        raise HTTPException(status_code=404, detail="Book not found")
     return db_book
 
-# --- Kitap Update ve Delete ---
-@app.put("/api/books/{book_id}", response_model=models.BookResponse, tags=["API - Kitaplar"])
+# --- Book Update and Delete ---
+@app.put("/api/books/{book_id}", response_model=models.BookResponse, tags=["API - Books"])
 def update_book_api(book_id: int, book: models.BookCreate, db: Session = Depends(get_db)):
     db_book = crud.get_book(db, book_id)
     if not db_book:
-        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+        raise HTTPException(status_code=404, detail="Book not found")
     db_book.title = book.title
     db_book.author = book.author
     db.commit()
     db.refresh(db_book)
     return db_book
 
-@app.delete("/api/books/{book_id}", status_code=204, tags=["API - Kitaplar"])
+@app.delete("/api/books/{book_id}", status_code=204, tags=["API - Books"])
 def delete_book_api(book_id: int, db: Session = Depends(get_db)):
     db_book = crud.get_book(db, book_id)
     if not db_book:
-        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+        raise HTTPException(status_code=404, detail="Book not found")
     db.delete(db_book)
     db.commit()
     return
 
-# --- Üye (Patron) API Endpointleri ---
+# --- Member (Patron) API Endpoints ---
 
-@app.post("/api/patrons/", response_model=models.PatronResponse, status_code=201, tags=["API - Kullanıcılar"])
+@app.post("/api/patrons/", response_model=models.PatronResponse, status_code=201, tags=["API - Users"])
 def create_patron_api(patron: models.PatronCreate, db: Session = Depends(get_db)):
-    """API üzerinden yeni bir kütüphane üyesi oluşturur."""
-    # Aynı isimde kullanıcı olup olmadığını kontrol et
+    """Creates a new library member via API."""
+    # Check if user with same name exists
     db_patron = crud.get_patron_by_username(db, username=patron.username)
     if db_patron:
-        raise HTTPException(status_code=400, detail="Bu isimde bir üye zaten mevcut")
+        raise HTTPException(status_code=400, detail="A member with this name already exists")
     return crud.create_patron(db=db, patron=patron)
 
-@app.get("/api/patrons/", response_model=List[models.PatronResponse], tags=["API - Kullanıcılar"])
+@app.get("/api/patrons/", response_model=List[models.PatronResponse], tags=["API - Users"])
 def get_all_patrons_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """API üzerinden tüm kütüphane üyelerini listeler."""
+    """Lists all library members via API."""
     patrons = crud.get_patrons(db=db, skip=skip, limit=limit)
     return patrons
 
 # --- Patron Read by ID, Update, Delete ---
-@app.get("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Kullanıcılar"])
+@app.get("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Users"])
 def get_patron_by_id_api(patron_id: int, db: Session = Depends(get_db)):
     db_patron = crud.get_patron(db, patron_id)
     if not db_patron:
-        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+        raise HTTPException(status_code=404, detail="Patron not found")
     return db_patron
 
-@app.put("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Kullanıcılar"])
+@app.put("/api/patrons/{patron_id}", response_model=models.PatronResponse, tags=["API - Users"])
 def update_patron_api(patron_id: int, patron: models.PatronCreate, db: Session = Depends(get_db)):
     db_patron = crud.get_patron(db, patron_id)
     if not db_patron:
-        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+        raise HTTPException(status_code=404, detail="Patron not found")
     db_patron.username = patron.username
     db_patron.hashed_password = crud.get_password_hash(patron.password)
     db.commit()
     db.refresh(db_patron)
     return db_patron
 
-@app.delete("/api/patrons/{patron_id}", status_code=204, tags=["API - Kullanıcılar"])
+@app.delete("/api/patrons/{patron_id}", status_code=204, tags=["API - Users"])
 def delete_patron_api(patron_id: int, db: Session = Depends(get_db)):
     db_patron = crud.get_patron(db, patron_id)
     if not db_patron:
-        raise HTTPException(status_code=404, detail="Patron bulunamadı")
+        raise HTTPException(status_code=404, detail="Patron not found")
     db.delete(db_patron)
     db.commit()
     return
 
-# --- Auth API Endpointleri ---
+# --- Auth API Endpoints ---
 
 @app.post("/api/auth/register", response_model=models.PatronResponse, tags=["Auth"])
 def register_patron_api(patron: models.PatronCreate, db: Session = Depends(get_db)):
     db_patron = crud.get_patron_by_username(db, username=patron.username)
     if db_patron:
-        raise HTTPException(status_code=400, detail="Bu kullanıcı adı zaten alınmış.")
+        raise HTTPException(status_code=400, detail="This username is already taken.")
     return crud.create_patron(db, patron)
 
 @app.post("/api/auth/login", tags=["Auth"])
 def login_patron_api(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     patron = crud.get_patron_by_username(db, username=form_data.username)
     if not patron or not crud.verify_password(form_data.password, patron.hashed_password):
-        raise HTTPException(status_code=400, detail="Kullanıcı adı veya şifre hatalı.")
+        raise HTTPException(status_code=400, detail="Invalid username or password.")
     access_token = create_access_token(data={"sub": patron.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- Celery Görev Tetikleme Endpoint'i ---
+# --- Task API Endpoints ---
 
-@app.post("/api/tasks/send-reminders", tags=["API - Görevler"])
+@app.post("/api/tasks/send-reminders", tags=["API - Tasks"])
 def trigger_reminders_api():
-    """
-    Gecikmiş kitaplar için hatırlatma görevini manuel olarak tetikler.
-    Bu görev arka planda çalışır.
-    """
-    tasks.send_overdue_reminders.delay()
-    return {"message": "Hatırlatma gönderme görevi başarıyla başlatıldı."}
+    """Triggers overdue book reminders manually via API."""
+    from .tasks import send_overdue_reminders
+    send_overdue_reminders.delay()
+    return {"message": "Reminder task triggered successfully"}
 
-# --- API üzerinden ödünç alma ve iade ---
-@app.post("/api/books/{book_id}/checkout", response_model=models.BookResponse, tags=["API - Kitaplar"])
+# --- Library Operations API ---
+
+@app.post("/api/books/{book_id}/checkout", response_model=models.BookResponse, tags=["API - Books"])
 def api_checkout_book(book_id: int, patron_id: int = Form(...), db: Session = Depends(get_db)):
     db_book = crud.get_book(db, book_id)
-    db_patron = crud.get_patron(db, patron_id)
-    if not db_book or not db_patron:
-        raise HTTPException(status_code=404, detail="Kitap veya patron bulunamadı")
+    if not db_book:
+        raise HTTPException(status_code=404, detail="Book not found")
     if db_book.patron_id is not None:
-        raise HTTPException(status_code=400, detail="Kitap zaten ödünçte")
+        raise HTTPException(status_code=400, detail="Book is already checked out")
     return crud.checkout_book(db, book_id, patron_id)
 
-@app.post("/api/books/{book_id}/return", response_model=models.BookResponse, tags=["API - Kitaplar"])
+@app.post("/api/books/{book_id}/return", response_model=models.BookResponse, tags=["API - Books"])
 def api_return_book(book_id: int, db: Session = Depends(get_db)):
     db_book = crud.get_book(db, book_id)
     if not db_book:
-        raise HTTPException(status_code=404, detail="Kitap bulunamadı")
+        raise HTTPException(status_code=404, detail="Book not found")
     if db_book.patron_id is None:
-        raise HTTPException(status_code=400, detail="Kitap zaten kütüphanede")
+        raise HTTPException(status_code=400, detail="Book is already in library")
     return crud.return_book(db, book_id)
 
-# --- Ödünçteki kitapları listele ---
-@app.get("/api/books/checked-out", response_model=List[models.BookResponse], tags=["API - Kitaplar"])
+@app.get("/api/books/checked-out", response_model=List[models.BookResponse], tags=["API - Books"])
 def get_checked_out_books_api(db: Session = Depends(get_db)):
-    books = db.query(models.Book).filter(models.Book.patron_id.isnot(None)).all()
-    return books
+    """Gets all currently checked out books via API."""
+    return [book for book in crud.get_books(db) if book.patron_id is not None]
 
-# --- Gecikmiş kitapları listele ---
-@app.get("/api/books/overdue", response_model=List[models.BookResponse], tags=["API - Kitaplar"])
+@app.get("/api/books/overdue", response_model=List[models.BookResponse], tags=["API - Books"])
 def get_overdue_books_api(db: Session = Depends(get_db)):
-    today = date.today()
-    books = db.query(models.Book).filter(models.Book.due_date.isnot(None), models.Book.due_date < today).all()
-    return books
+    """Gets all overdue books via API."""
+    return crud.get_overdue_books(db)
+
+# --- Admin Panel Endpoints ---
 
 @app.get("/admin", response_class=HTMLResponse, tags=["Admin"])
 def admin_panel(request: Request, db: Session = Depends(get_db)):
     patrons = crud.get_patrons(db)
     books = crud.get_books(db)
     overdue_books = crud.get_overdue_books(db)
-    email_logs = crud.get_email_logs(db, limit=10)  # Son 10 email log'u
+    email_logs = crud.get_email_logs(db, limit=10)  # Last 10 email logs
     
     return templates.TemplateResponse("admin.html", {
         "request": request,
@@ -391,7 +387,7 @@ def admin_edit_book(request: Request, book_id: int = Path(...), title: str = For
 
 @app.get("/admin/emails", response_class=HTMLResponse, tags=["Admin"])
 def admin_email_logs(request: Request, db: Session = Depends(get_db)):
-    """Email gönderim geçmişini gösterir."""
+    """Shows email sending history."""
     email_logs = crud.get_email_logs(db, limit=50)
     overdue_books = crud.get_overdue_books(db)
     
@@ -403,39 +399,39 @@ def admin_email_logs(request: Request, db: Session = Depends(get_db)):
 
 @app.post("/admin/send-overdue-reminders", response_class=HTMLResponse, tags=["Admin"])
 def admin_send_overdue_reminders(request: Request, db: Session = Depends(get_db)):
-    """Manuel olarak süresi geçmiş kitap hatırlatmaları gönderir."""
+    """Manually triggers overdue book reminders."""
     from .tasks import send_overdue_reminders
-    # Celery task'ını manuel olarak tetikle
+    # Manually trigger Celery task
     send_overdue_reminders.delay()
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.post("/admin/send-weekly-report", response_class=HTMLResponse, tags=["Admin"])
 def admin_send_weekly_report(request: Request, db: Session = Depends(get_db)):
-    """Manuel olarak haftalık rapor oluşturur ve admin panelinde gösterir."""
+    """Manually generates weekly report and shows it in admin panel."""
     from .tasks import generate_weekly_report
-    # Celery task'ını manuel olarak tetikle
+    # Manually trigger Celery task
     task_result = generate_weekly_report.delay()
     
-    # Task sonucunu bekle ve rapor verilerini al
+    # Wait for task result and get report data
     try:
-        report_data = task_result.get(timeout=10)  # 10 saniye bekle
+        report_data = task_result.get(timeout=10)  # Wait 10 seconds
         return RedirectResponse(url=f"/admin/weekly-report?data={report_data}", status_code=303)
     except:
         return RedirectResponse(url="/admin?error=report_generation_failed", status_code=303)
 
 @app.get("/admin/weekly-report", response_class=HTMLResponse, tags=["Admin"])
 def admin_weekly_report(request: Request, db: Session = Depends(get_db)):
-    """Haftalık raporu admin panelinde gösterir."""
-    # Rapor verilerini hesapla
+    """Shows weekly report in admin panel."""
+    # Calculate report data
     all_books = crud.get_books(db)
     checked_out_books = [book for book in all_books if book.patron_id is not None]
     overdue_books = crud.get_overdue_books(db)
     
-    # Haftalık istatistikler (son 7 gün)
+    # Weekly statistics (last 7 days)
     from datetime import timedelta
     week_ago = date.today() - timedelta(days=7)
     
-    # Son 7 günde ödünç alınan kitaplar
+    # Books borrowed in last 7 days
     recent_checkouts = db.query(models.Book).filter(
         models.Book.patron_id.isnot(None),
         models.Book.due_date >= week_ago
@@ -462,23 +458,23 @@ def admin_weekly_report(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/emails/", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
 def get_email_logs_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """API üzerinden email log'larını listeler."""
+    """Lists email logs via API."""
     return crud.get_email_logs(db, skip=skip, limit=limit)
 
 @app.get("/api/emails/overdue-reminders", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
 def get_overdue_reminder_emails_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Süresi geçmiş kitap hatırlatma email'lerini listeler."""
+    """Lists overdue book reminder emails via API."""
     return crud.get_email_logs_by_type(db, "overdue_reminder", skip=skip, limit=limit)
 
 @app.get("/api/emails/weekly-reports", response_model=List[models.EmailLogResponse], tags=["API - Emails"])
 def get_weekly_report_emails_api(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Haftalık rapor email'lerini listeler."""
+    """Lists weekly report emails via API."""
     return crud.get_email_logs_by_type(db, "weekly_report", skip=skip, limit=limit)
 
 @app.post("/notifications/read/{notification_id}", response_class=HTMLResponse)
 def mark_notification_read(notification_id: int, db: Session = Depends(get_db), request: Request = None):
     crud.mark_notification_as_read(db, notification_id)
-    # Geri ana sayfaya yönlendir
+    # Redirect back to main page
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/notifications/delete/{notification_id}", response_class=HTMLResponse)

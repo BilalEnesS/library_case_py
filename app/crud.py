@@ -11,7 +11,7 @@ def get_password_hash(password: str):
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-# --- Patron CRUD İşlemleri ---
+# --- Patron CRUD Operations ---
 def create_patron(db: Session, patron: models.PatronCreate):
     hashed_password = get_password_hash(patron.password)
     db_patron = models.Patron(username=patron.username, hashed_password=hashed_password)
@@ -29,7 +29,7 @@ def get_patron(db: Session, patron_id: int):
 def get_patrons(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Patron).offset(skip).limit(limit).all()
 
-# --- Kitap CRUD İşlemleri ---
+# --- Book CRUD Operations ---
 def get_book(db: Session, book_id: int):
     return db.query(models.Book).filter(models.Book.id == book_id).first()
 
@@ -43,11 +43,11 @@ def create_book(db: Session, book: models.BookCreate):
     db.refresh(db_book)
     return db_book
 
-# --- Kütüphane Operasyonları ---
+# --- Library Operations ---
 def checkout_book(db: Session, book_id: int, patron_id: int):
     db_book = get_book(db, book_id)
     if not db_book or db_book.patron_id is not None:
-        return None  # Kitap yok veya zaten alınmış
+        return None  # Book doesn't exist or already borrowed
     db_book.patron_id = patron_id
     db_book.due_date = date.today() + timedelta(days=14)
     db.commit()
@@ -57,25 +57,25 @@ def checkout_book(db: Session, book_id: int, patron_id: int):
 def return_book(db: Session, book_id: int):
     db_book = get_book(db, book_id)
     if not db_book or db_book.patron_id is None:
-        return None  # Kitap yok veya ödünç alınmamış
+        return None  # Book doesn't exist or not borrowed
     db_book.patron_id = None
     db_book.due_date = None
     db.commit()
     db.refresh(db_book)
     return db_book
 
-# --- Süresi Geçmiş Kitaplar ---
+# --- Overdue Books ---
 def get_overdue_books(db: Session):
-    """Süresi geçmiş kitapları getirir."""
+    """Gets overdue books."""
     today = date.today()
     return db.query(models.Book).filter(
         models.Book.due_date < today,
         models.Book.patron_id.isnot(None)
     ).all()
 
-# --- Email Log CRUD İşlemleri ---
+# --- Email Log CRUD Operations ---
 def create_email_log(db: Session, email_log: models.EmailLogCreate):
-    """Email gönderim kaydı oluşturur."""
+    """Creates an email sending record."""
     db_email_log = models.EmailLog(**email_log.dict())
     db.add(db_email_log)
     db.commit()
@@ -83,17 +83,17 @@ def create_email_log(db: Session, email_log: models.EmailLogCreate):
     return db_email_log
 
 def get_email_logs(db: Session, skip: int = 0, limit: int = 100):
-    """Email gönderim kayıtlarını getirir."""
+    """Gets email sending records."""
     return db.query(models.EmailLog).order_by(models.EmailLog.sent_at.desc()).offset(skip).limit(limit).all()
 
 def get_email_logs_by_type(db: Session, email_type: str, skip: int = 0, limit: int = 100):
-    """Belirli tipteki email kayıtlarını getirir."""
+    """Gets email records of specific type."""
     return db.query(models.EmailLog).filter(
         models.EmailLog.email_type == email_type
     ).order_by(models.EmailLog.sent_at.desc()).offset(skip).limit(limit).all()
 
 def update_email_log_status(db: Session, email_id: int, status: str):
-    """Email log durumunu günceller."""
+    """Updates email log status."""
     db_email_log = db.query(models.EmailLog).filter(models.EmailLog.id == email_id).first()
     if db_email_log:
         db_email_log.status = status

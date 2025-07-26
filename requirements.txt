@@ -11,3 +11,4 @@ passlib[bcrypt]
 python-jose
 starlette
 jinja2
+python-dotenv

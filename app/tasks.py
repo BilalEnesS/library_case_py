@@ -7,25 +7,25 @@ from email.mime.multipart import MIMEMultipart
 import os
 from datetime import date, datetime
 
-# Email ayarları (gerçek projede .env'den alınmalı)
+# Email settings (in real project, should be loaded from .env)
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "your-email@gmail.com")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "your-app-password")
 
 def send_email(to_email: str, subject: str, message: str) -> bool:
-    """Email gönderir ve başarı durumunu döner."""
+    """Sends email and returns success status."""
     try:
-        # Email mesajını oluştur
+        # Create email message
         msg = MIMEMultipart()
         msg['From'] = SMTP_USERNAME
         msg['To'] = to_email
         msg['Subject'] = subject
         
-        # Mesaj gövdesini ekle
+        # Add message body
         msg.attach(MIMEText(message, 'plain'))
         
-        # SMTP sunucusuna bağlan ve email gönder
+        # Connect to SMTP server and send email
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(SMTP_USERNAME, SMTP_PASSWORD)
@@ -35,12 +35,12 @@ def send_email(to_email: str, subject: str, message: str) -> bool:
         
         return True
     except Exception as e:
-        print(f"Email gönderme hatası: {e}")
+        print(f"Email sending error: {e}")
         return False
 
 @celery_app.task
 def send_overdue_reminders():
-    """Süresi geçmiş kitaplar için email hatırlatması ve bildirim gönderir."""
+    """Sends email reminders and notifications for overdue books."""
     print("Checking for overdue books...")
     
     db = SessionLocal()
@@ -71,12 +71,12 @@ Please return this book as soon as possible to avoid any late fees.
 Thank you,
 Library Management System
                 """.strip()
-                # Bildirim mesajı (ceza örneğiyle)
-                fine_amount = 10  # Örnek ceza miktarı
+                # Notification message (with fine example)
+                fine_amount = 10  # Example fine amount
                 notif_msg = f"The book '{book.title}' is overdue! Please return it immediately. Your fine is ${fine_amount}."
-                # Email gönder (gerçek projede patron.email kullanılır)
+                # Send email (in real project, use patron.email)
                 email_sent = True  # send_email(f"{book.patron.username}@example.com", subject, message)
-                # Email log kaydı oluştur
+                # Create email log record
                 email_log = models.EmailLogCreate(
                     recipient_id=book.patron.id,
                     subject=subject,
@@ -90,7 +90,7 @@ Library Management System
                 else:
                     failed_count += 1
                     print(f"FAILED TO SEND: {book.patron.username} - '{book.title}'")
-                # Bildirim kaydı oluştur
+                # Create notification record
                 notif = models.NotificationCreate(
                     patron_id=book.patron.id,
                     message=notif_msg
@@ -102,12 +102,12 @@ Library Management System
 
 @celery_app.task
 def generate_weekly_report():
-    """Haftalık ödünç alma istatistiklerini oluşturur."""
+    """Generates weekly borrowing statistics."""
     print("Generating weekly report...")
     
     db = SessionLocal()
     try:
-        # Haftalık istatistikleri hesapla
+        # Calculate weekly statistics
         all_books = crud.get_books(db)
         checked_out_books = [book for book in all_books if book.patron_id is not None]
         overdue_books = crud.get_overdue_books(db)
@@ -124,7 +124,7 @@ def generate_weekly_report():
         print(f"Weekly report generated successfully at {report_data['generated_at']}")
         print(f"Report data: {report_data}")
         
-        # Rapor verilerini döndür (admin panelinde kullanılacak)
+        # Return report data (will be used in admin panel)
         return report_data
             
     finally:
@@ -132,7 +132,7 @@ def generate_weekly_report():
 
 @celery_app.task
 def send_test_email():
-    """Test email gönderir."""
+    """Sends a test email."""
     print("Sending test email...")
     
     subject = "Test Email from Library System"
