@@ -45,7 +45,7 @@
     <!-- Navbar Start -->
     <nav class="navbar navbar-expand-lg shadow-sm mb-4" style="background-color: #e3f2fd;">
         <div class="container">
-            <a class="navbar-brand fw-bold" href="/">Library System</a>
+            <a class="navbar-brand fw-bold" href="/">📚 Library System</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -74,9 +74,75 @@
     </nav>
     <!-- Navbar End -->
     <div class="container mt-5">
-        <h1 class="mb-4 text-center panel-title">Library Management Panel</h1>
+        {% if not patron %}
+        <!-- Welcome Hero Section -->
+        <div class="row justify-content-center align-items-center mb-5">
+            <div class="col-lg-7 text-center">
+                <div class="p-4 p-md-5 rounded-4 shadow-sm bg-white mb-4" style="border: 1px solid #e3f2fd;">
+                    <div style="font-size: 3.5rem;">📚</div>
+                    <h1 class="display-5 fw-bold mb-3 mt-2">Welcome to the Library Management System</h1>
+                    <p class="lead mb-4">Easily manage your books, track borrowings, get instant notifications, and access powerful admin tools — all in one modern platform.</p>
+                    <div class="d-flex justify-content-center gap-3 mb-2 flex-wrap">
+                        <a href="/login" class="btn btn-primary btn-lg px-4">Log In</a>
+                        <a href="/register" class="btn btn-outline-primary btn-lg px-4">Register</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Features Section -->
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 shadow-sm border-0 text-center">
+                    <div class="card-body">
+                        <div style="font-size:2.2rem;">🔒</div>
+                        <h5 class="card-title mt-2">Secure & Easy Access</h5>
+                        <p class="card-text">Register and log in securely. Your data is always protected.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 shadow-sm border-0 text-center">
+                    <div class="card-body">
+                        <div style="font-size:2.2rem;">📖</div>
+                        <h5 class="card-title mt-2">Smart Book Management</h5>
+                        <p class="card-text">Borrow, return, and track books with a single click. See overdue books instantly.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card h-100 shadow-sm border-0 text-center">
+                    <div class="card-body">
+                        <div style="font-size:2.2rem;">📢</div>
+                        <h5 class="card-title mt-2">Real-time Notifications</h5>
+                        <p class="card-text">Get notified about overdue books and important updates right in your account.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100 shadow-sm border-0 text-center">
+                    <div class="card-body">
+                        <div style="font-size:2.2rem;">🛠️</div>
+                        <h5 class="card-title mt-2">Powerful Admin Panel</h5>
+                        <p class="card-text">Admins can manage users, books, notifications, and view detailed weekly reports.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card h-100 shadow-sm border-0 text-center">
+                    <div class="card-body">
+                        <div style="font-size:2.2rem;">🌐</div>
+                        <h5 class="card-title mt-2">Modern & Responsive</h5>
+                        <p class="card-text">Enjoy a clean, mobile-friendly interface with a professional look and feel.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% if patron %}
-          <div class="welcome-box p-4 mb-4">
+        <h1 class="mb-4 text-center panel-title">Library Management Panel</h1>
+        <div class="welcome-box p-4 mb-4">
             <strong>Welcome, {{ patron.username }}!</strong><br>
             <!-- Notifications -->
             {% if notifications %}
@@ -136,7 +202,6 @@
               <p>You have not borrowed any books yet.</p>
             {% endif %}
           </div>
-        {% endif %}
         <div class="row mt-4 justify-content-center">
             <div class="col-md-8">
                 <div class="card shadow-sm">
@@ -164,6 +229,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </body>
 </html>
