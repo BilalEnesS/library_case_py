@@ -37,6 +37,3 @@ db-data/
 # Diğer
 *.bak
 *.tmp
-
-# Kendi eklediklerin
-wait-for-postgres.sh 
