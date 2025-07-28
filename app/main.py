@@ -11,6 +11,7 @@ from .database import engine, get_db
 from .db_seeder import seed_db # NEW: Import the data seeding function
 from starlette.responses import Response
 from .database import engine, get_db, SessionLocal
+import os
 
 # Import other modules from the project
 
@@ -18,23 +19,38 @@ from .database import engine, get_db, SessionLocal
 
 # 1. Tell SQLAlchemy to create database tables.
 #    If tables already exist, it won't do anything.
-models.Base.metadata.create_all(bind=engine)
+try:
+    models.Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully")
+except Exception as e:
+    print(f"Error creating database tables: {e}")
 
 # 2. Create FastAPI application
 app = FastAPI(title="Library Management System")
 
+# 3. Seed database with initial data
 try:
     db = SessionLocal()
     seed_db(db)
+    print("Database seeded successfully")
+except Exception as e:
+    print(f"Error seeding database: {e}")
 finally:
-    db.close()
-# 3. Configure Jinja2 to use HTML templates
+    if 'db' in locals():
+        db.close()
+
+# 4. Configure Jinja2 to use HTML templates
 #    This will look for the 'templates' folder in the project root.
 templates = Jinja2Templates(directory="templates")
 
 SECRET_KEY = "supersecretkey"  # In real project, should be loaded from .env
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# Health check endpoint for Railway
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "message": "Library Management System is running"}
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()

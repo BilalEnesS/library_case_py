@@ -12,8 +12,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY ./app /code/app
 COPY ./templates /code/templates
 
+# Startup script'ini kopyala ve çalıştırılabilir yap
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
 # Port'u expose et
 EXPOSE 8000
 
-# Uygulamayı başlat
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Startup script'ini çalıştır
+CMD ["/start.sh"]
